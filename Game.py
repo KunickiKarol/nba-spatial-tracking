@@ -475,7 +475,7 @@ class Game:
         players_df['owner'] = False
         players_df.loc[idx_min_dist_diff, 'owner'] = True
 
-        merge_df = self.player_df[['player_id', 'team_id']]
+        merge_df = self.player_df[['player_id', 'team_id', 'position']]
         players_df = pd.merge(players_df, merge_df, how='left', left_on='object_id', right_on='player_id')
         return players_df
 
