@@ -496,25 +496,48 @@ class Game:
     def set_field_time(self, players_df):
         merge_df = self.moment_df[['moment_id', 'play_time']]
         players_df = pd.merge(players_df, merge_df, how='left', on='moment_id')
-        players_df['field_time']  = players_df.groupby('object_id')['moment_id'].diff().ne(1).cumsum().groupby(players_df['object_id']).cumcount()
+        players_df['total_field_time']  = players_df.groupby('object_id')['moment_id'].diff().ne(1).cumsum().groupby(players_df['object_id']).cumcount()
+        players_df['field_time'] = 0.0
         field_times_dict = {}
+        total_field_times_dict = {}
         for player_id in players_df['object_id'].unique():
-            player =    players_df[players_df['object_id']==player_id]
+            player = players_df[players_df['object_id']==player_id]
+            total_field_time = []
+            
             field_time = []
-    
+            last_moment_player = player.iloc[0].moment_id
+            start_time = player.iloc[0].play_time
+            
             for player_moment in player.itertuples():
-                if player_moment.field_time == 0:
+                if player_moment.moment_id - last_moment_player > 1:
+                    last_moment_player = player_moment.moment_id
                     start_time = player_moment.play_time
                     field_time.append(0.0)
                 else:
+                    last_moment_player = player_moment.moment_id
                     value = player_moment.play_time - start_time
                     field_time.append(value)
-            field_times_dict[player_id] = field_time
-            
-        players_df['field_time'] = 0.0
-        for key, item in field_times_dict.items():
-            players_df.loc[players_df['object_id'] == key, 'field_time'] = item
+                    
+                    
+                if player_moment.total_field_time == 0:
+                    total_start_time = player_moment.play_time
+                    total_field_time.append(0.0)
+                else:
+                    value = player_moment.play_time - total_start_time
+                    total_field_time.append(value)
         
+            field_times_dict[player_id] = field_time
+            total_field_times_dict[player_id] = total_field_time
+        
+            
+        for key, item in total_field_times_dict.items():
+            players_df.loc[players_df['object_id'] == key, 'total_field_time'] = item
+            
+        for key, item in field_times_dict.items():
+            
+            players_df.loc[players_df['object_id'] == key, 'field_time'] = item
+            
+            
         players_df.drop('play_time', axis=1, inplace=True)
         return players_df
     
