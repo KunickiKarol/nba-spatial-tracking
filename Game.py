@@ -493,9 +493,35 @@ class Game:
         team_owner.rename(columns={'team_id': 'attack_team'}, inplace=True)
         return team_owner
     
+    def set_field_time(self, players_df):
+        merge_df = self.moment_df[['moment_id', 'play_time']]
+        players_df = pd.merge(players_df, merge_df, how='left', on='moment_id')
+        players_df['field_time']  = players_df.groupby('object_id')['moment_id'].diff().ne(1).cumsum().groupby(players_df['object_id']).cumcount()
+        field_times_dict = {}
+        for player_id in players_df['object_id'].unique():
+            player =    players_df[players_df['object_id']==player_id]
+            field_time = []
+    
+            for player_moment in player.itertuples():
+                if player_moment.field_time == 0:
+                    start_time = player_moment.play_time
+                    field_time.append(0.0)
+                else:
+                    value = player_moment.play_time - start_time
+                    field_time.append(value)
+            field_times_dict[player_id] = field_time
+            
+        players_df['field_time'] = 0.0
+        for key, item in field_times_dict.items():
+            players_df.loc[players_df['object_id'] == key, 'field_time'] = item
+        
+        players_df.drop('play_time', axis=1, inplace=True)
+        return players_df
+    
     def get_move_seq_dfs(self):
-        ball_df =self.move_df[self.move_df['object_id'] == -1]
+        ball_df = self.move_df[self.move_df['object_id'] == -1]
         players_df = self.move_df[self.move_df['object_id'] != -1]
+        players_df = self.set_field_time(players_df)
         players_df = self.add_owner_moment(players_df, ball_df)
         merge_df = self.get_seq_df()
         players_df = pd.merge(players_df, merge_df, how='left', left_on='moment_id', right_on='moment_id')

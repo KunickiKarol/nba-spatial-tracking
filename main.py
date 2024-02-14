@@ -121,39 +121,46 @@ def get_team_owner(players_df):
 
 ball_df = move_df[move_df['object_id'] == -1]
 players_df = move_df[move_df['object_id'] != -1]
+players_df = set_field_time(players_df)
 players_df = add_owner_moment(players_df, ball_df)
 merge_df = get_seq_df()
 players_df = pd.merge(players_df, merge_df, how='left', left_on='moment_id', right_on='moment_id')
-
 # %%
-move_owner_df = get_team_owner(players_df)
-players_seq_df = pd.merge(players_df, move_owner_df, how='left', on='seq_id')
-players_seq_df =  players_seq_df.dropna(subset=['attack_team'])
-ball_seq_df = ball_df[ball_df['moment_id'].isin(players_seq_df['moment_id'])]
+def set_field_time(self, players_df):
+    merge_df = self.moment_df[['moment_id', 'play_time']]
+    players_df = pd.merge(players_df, merge_df, how='left', on='moment_id')
+    players_df['field_time']  = players_df.groupby('object_id')['moment_id'].diff().ne(1).cumsum().groupby(players_df['object_id']).cumcount()
+    field_times_dict = {}
+    for player_id in players_df['object_id'].unique():
+        player = players_df[players_df['object_id']==player_id]
+        field_time = []
 
-
+        for player_moment in player.itertuples():
+            if player_moment.field_time == 0:
+                start_time = player_moment.play_time
+                field_time.append(0.0)
+            else:
+                value = player_moment.play_time - start_time
+                field_time.append(value)
+        field_times_dict[player_id] = field_time
+        
+    for key, item in field_times_dict.items():
+        players_df.loc[players_df['object_id'] == key, 'field_time'] = item
+        
+    players_df.drop('play_time', axis=1, inplace=True)
+    return players_df
 # %%
-TEAM_OWNER_THRESHOLD = 99
-count_per_team = players_df.groupby(['seq_id', 'team_id'])['owner'].sum()
+#a.groupby('object_id')['play_time'].diff().where(a['field_time'] == 1).head(40)
 
-# Znalezienie indeksów dla maksymalnych wartości w każdej grupie 'seq_id'
-idx_max_owner = count_per_team.groupby('seq_id').idxmax()
-
-# Utworzenie DataFrame z wynikami
-team_owner = pd.DataFrame(list(idx_max_owner), columns=['seq_id', 'team_id'])
-
-
-team_owner['owner_count'] = count_per_team.loc[idx_max_owner].values
-
-team_owner = team_owner[team_owner['owner_count'] > TEAM_OWNER_THRESHOLD]
+    field_times_dict[player_id] = field_time
 # %%
-team_owner = team_owner.rename(columns={'team_id': 'attack_team'}, inplace=True)
+for key, item in field_times_dict.items():
+    a.loc[a['object_id'] == key, 'field_time'] = item
 
-
-
-
-
-
+        
+    
+# %%
+field_times_dict[202685]
 
 
 
