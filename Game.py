@@ -205,9 +205,15 @@ class Game:
         except IndexError:
             return None
         
+    def proof_shot(self, row):
+        if row.EVENTMSGTYPE == 3:
+          return 1
+        else:
+          return 1
+
     def get_home_side(self, shot_df, move_df, quater):
         # True = home is Right/+, False = home is Left/-
-        SHOT_REQUIRED_NUM = 5
+        SHOT_REQUIRED_NUM = 10
         quater_shot_df = shot_df[shot_df['PERIOD']==quater]
         
         quater_shot_counter = 0
@@ -221,20 +227,20 @@ class Game:
             if row.HOMEDESCRIPTION is not np.nan and ('MISS' in row.HOMEDESCRIPTION or
                                                       'PTS' in row.HOMEDESCRIPTION):
                 if side:
-                    proof_counter += 1
+                    proof_counter += self.proof_shot(row)
                 else:
-                    proof_counter -= 1
+                    proof_counter -= self.proof_shot(row)
             else:
                 if side:
-                    proof_counter -= 1
+                    proof_counter -= self.proof_shot(row)
                 else:
-                    proof_counter += 1
+                    proof_counter += self.proof_shot(row)
             
             if quater_shot_counter == SHOT_REQUIRED_NUM:
                 break
             quater_shot_counter += 1
             
-            return proof_counter > 0
+        return proof_counter > 0
         
     def reverse_coordinates(self, df):
         x_symetric = 50
@@ -326,7 +332,7 @@ class Game:
         return player_circles, ball_circle
     
     
-    def show(self, start_time, end_time, file_name='tmp.gif'):
+    def show(self, start_time, end_time, file_name='tmp'):
         show_moment_df = self.moment_df[(self.moment_df['play_time'] >= start_time) & (self.moment_df['play_time'] <= end_time)]
         show_moment_df = show_moment_df[['moment_id', 'quater', 'quater_time', 'play_time', 'shot_clock']]
 
@@ -409,7 +415,7 @@ class Game:
                                         Constant.Y_MAX, Constant.Y_MIN])
 
         #plt.show()
-        anim.save(file_name, dpi=200)
+        anim.save(f'{file_name}.gif', dpi=200)
         
     def count_dist(self, ball, player):
         return math.sqrt(pow(player.x - ball.x, 2) + pow(player.y - ball.y, 2))
