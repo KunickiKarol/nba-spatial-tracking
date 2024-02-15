@@ -284,6 +284,12 @@ class Game:
         return sportvu_data, sportvu_events_data    
         
     def update_radius(self, i, player_circles, ball_circle, annotations, clock_info, moment_df, players_df, ball_df, table_cells):
+        def calc(x):
+            if x % 2 == 0:
+                value = x / 2 + 5
+            else:
+                value = x//2
+            return int(value)
         #print(f'frame {i}')
         actual_moment = moment_df.iloc[i]
         moment_id = actual_moment['moment_id']
@@ -291,7 +297,7 @@ class Game:
         actual_ball = ball_df[ball_df['moment_id'] == moment_id].iloc[0]
         
         for idx, cell in enumerate(table_cells[:10]):
-            player = actual_players.iloc[idx]
+            player = actual_players.iloc[calc(idx)]
             cell._text.set_color('white')
             cell._text.set_text(f'{player.lastname} {player.firstname} #{player.jersey_num}')
             
@@ -407,9 +413,18 @@ class Game:
         
     def count_dist(self, ball, player):
         return math.sqrt(pow(player.x - ball.x, 2) + pow(player.y - ball.y, 2))
-        
+
+    def find_closest_move(self, actual_ball, probable_moves):
+        # Utwórz kolumnę 'distance' z obliczonymi dystansami
+        probable_moves['distance'] = probable_moves.apply(lambda row: self.count_dist(actual_ball, row), axis=1)
+
+        # Znajdź wiersz z najmniejszym dystansem
+        closest_move = probable_moves.loc[probable_moves['distance'].idxmin()]
+
+        return closest_move
+    
     def fix_shot_moment(self, shot, ball_df):
-        MAX_DIST_BALL_SHOOTER = 2
+        MAX_DIST_BALL_SHOOTER = 3
         UNACCURATE_THRESHOLD = 25 * 24 # 25hz * 24s shot clock
         
         moment_id = shot.moment_id
@@ -417,18 +432,57 @@ class Game:
         shooter_move_df = self.move_df[self.move_df['object_id'] == shooter_id]
         
         actual_ball = ball_df[ball_df['moment_id'] == moment_id].iloc[0]
-        actual_shooter = shooter_move_df[shooter_move_df['moment_id'] == moment_id].iloc[0]
-        distance = self.count_dist(actual_ball, actual_shooter)
-        counter = 0
-        while distance > MAX_DIST_BALL_SHOOTER:
-            moment_id -= 1
-            
-            actual_ball = ball_df[ball_df['moment_id'] == moment_id].iloc[0]
+        try:
             actual_shooter = shooter_move_df[shooter_move_df['moment_id'] == moment_id].iloc[0]
             distance = self.count_dist(actual_ball, actual_shooter)
-            if counter > UNACCURATE_THRESHOLD: 
-                print('Unaccurate repair shot num {shot.EVENTNUM}')
-            counter += 1
+            
+        except Exception:
+            action_asof_time = self.moment_df[self.moment_df['moment_id']==moment_id]['play_time'].iloc[0]
+            merge_df = self.moment_df[['moment_id', 'play_time']]
+            probable_moves = pd.merge(shooter_move_df, merge_df, how='left', on='moment_id')
+            probable_moves = probable_moves[probable_moves['play_time'] == action_asof_time]
+            closest_move = self.find_closest_move(actual_ball, probable_moves)
+            if closest_move.distance > MAX_DIST_BALL_SHOOTER:
+                moment_id = closest_move.moment_id
+                distance = closest_move.distance
+            else:
+                closest_move = probable_moves.iloc[0]
+                moment_id = closest_move.moment_id
+                distance = closest_move.distance
+        counter = 0
+        try:
+            while distance > MAX_DIST_BALL_SHOOTER:
+                moment_id -= 1
+                actual_ball = ball_df[ball_df['moment_id'] == moment_id].iloc[0]
+                actual_shooter = shooter_move_df[shooter_move_df['moment_id'] == moment_id].iloc[0]
+                distance = self.count_dist(actual_ball, actual_shooter)
+                if counter > UNACCURATE_THRESHOLD: 
+                    print(f'Unaccurate repair shot num {shot.EVENTNUM}')
+                    shot.moment_id = -1
+                    return shot
+                counter += 1
+                
+            earlier_moment_id = moment_id - 1
+            earlier_ball = ball_df[ball_df['moment_id'] == earlier_moment_id].iloc[0]
+            earlier_shooter = shooter_move_df[shooter_move_df['moment_id'] == earlier_moment_id].iloc[0]
+            earlier_distance = self.count_dist(earlier_ball, earlier_shooter)
+            while earlier_distance < distance:
+                moment_id -= 1
+                distance = earlier_distance
+                
+                earlier_moment_id -= 1
+                earlier_ball = ball_df[ball_df['moment_id'] == earlier_moment_id].iloc[0]
+                earlier_shooter = shooter_move_df[shooter_move_df['moment_id'] == earlier_moment_id].iloc[0]
+                earlier_distance = self.count_dist(earlier_ball, earlier_shooter)
+                if counter > UNACCURATE_THRESHOLD: 
+                    print(f'Unaccurate repair shot num {shot.EVENTNUM}')
+                    shot.moment_id = -1
+                    return shot
+                counter += 1
+        except Exception:
+            print(f'Unaccurate repair shot num {shot.EVENTNUM}')
+            shot.moment_id = -1
+            return shot
         shot.moment_id = moment_id
         return shot
     
@@ -436,6 +490,7 @@ class Game:
         shot_df = self.action_df[self.action_df['EVENTMSGTYPE'].isin([1,2,3])]
         ball_df = self.move_df[self.move_df['object_id'] == -1]
         shot_df = shot_df.apply(lambda shot: self.fix_shot_moment(shot, ball_df), axis=1)
+        shot_df = shot_df[shot_df['moment_id'] != -1]
         shot_df = shot_df.drop(['play_time', 'quater_time'], axis=1)
         merge_df = self.moment_df[['moment_id', 'quater_time', 'play_time']]
         shot_df = pd.merge(shot_df, merge_df, how='left', on='moment_id')
