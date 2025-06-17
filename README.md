@@ -1,6 +1,6 @@
 # 🏀 NBA Player Spatial Movement Analysis
 
-This repository contains my personal analysis of NBA player movement data using **GeoPandas** and **Pandas**. The project explores spatial patterns, trajectories, and positional trends of players during games.
+This repository contains my personal analysis of NBA player movement data using **GeoPandas** and **Moveing Pandas**. The project explores spatial patterns, trajectories, and positional trends of players during games.
 
 ![Sample Image](images/tmp.gif)
 
