@@ -20,7 +20,7 @@ The goal of this project is to analyze the **spatial movement of NBA players** a
 ## ⚠️ Challenges Encountered
 
 - The two spatial datasets had **incompatible coordinate systems and formats**
-- Many geometries were **corrupted or invalid**, requiring manual correction and validation
+- Many geometries were **corrupted or invalid**, requiring correction and validation
 - Merging positional and metadata required resolving mismatched keys and missing data
 
 ![Sample Image](images/shots_results.png)
